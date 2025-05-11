@@ -2,11 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const app = express();
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB conectado'))
@@ -32,6 +31,7 @@ function gerarCodigo() {
 }
 
 app.post('/mensagem', async (req, res) => {
+  console.log('req.body:', req.body);
   const { advogado, cliente, mensagem } = req.body;
   const novaMensagem = new Mensagem({
     codigo: gerarCodigo(),
@@ -39,9 +39,13 @@ app.post('/mensagem', async (req, res) => {
     cliente,
     mensagem
   });
+  //await novaMensagem.save();
+  //res.status(201).json(novaMensagem);
   await novaMensagem.save();
-  res.status(201).json(novaMensagem);
+  const msgCompleta = await Mensagem.findOne({ codigo: novaMensagem.codigo });
+  res.status(201).json(msgCompleta);
 });
+
 
 app.get('/mensagem/:codigo', async (req, res) => {
   const msg = await Mensagem.findOne({ codigo: req.params.codigo });
