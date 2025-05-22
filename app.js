@@ -120,12 +120,15 @@ app.post('/webhook/twilio', async (req, res) => {
     return res.send(`<Response><Message>Erro ao enviar mensagem</Message></Response>`);
   }
 });*/
+
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const app = express();
 const axios = require('axios');
+
+const app = express();
+
 app.use(cors());
 app.use(express.json());
 app.use(require('body-parser').urlencoded({ extended: false }));
@@ -134,6 +137,7 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB conectado'))
   .catch(err => console.error('❌ Erro ao conectar no MongoDB:', err));
 
+// 📌 Schema atualizado com novos campos
 const MensagemSchema = new mongoose.Schema({
   codigo: String,
   advogado: String,
@@ -160,34 +164,24 @@ function gerarCodigo() {
   return code;
 }
 
+// POST: criar nova mensagem
 app.post('/mensagem', async (req, res) => {
-  console.log('req.body:', req.body);
-
-  const novaMensagem = new Mensagem({
-    codigo: gerarCodigo(),
-    advogado: req.body.advogado,
-    cliente: req.body.cliente,
-    mensagem: req.body.mensagem,
-    numeroOAB: req.body.numeroOAB,
-    endereco: req.body.endereco,
-    carteiraFrenteUrl: req.body.carteiraFrenteUrl,
-    carteiraVersoUrl: req.body.carteiraVersoUrl,
-    email: req.body.email,
-    telefone: req.body.telefone,
-    whatsapp: req.body.whatsapp
-  });
+  const codigo = gerarCodigo();
+  const novaMensagem = new Mensagem({ codigo, ...req.body });
 
   await novaMensagem.save();
-  const msgCompleta = await Mensagem.findOne({ codigo: novaMensagem.codigo });
+  const msgCompleta = await Mensagem.findOne({ codigo });
   res.status(201).json(msgCompleta);
 });
 
+// GET: recuperar por código
 app.get('/mensagem/:codigo', async (req, res) => {
   const msg = await Mensagem.findOne({ codigo: req.params.codigo });
   if (!msg) return res.status(404).json({ erro: 'Mensagem não encontrada' });
   res.json(msg);
 });
 
+// PATCH: marcar como lida
 app.patch('/mensagem/:codigo/abrir', async (req, res) => {
   const msg = await Mensagem.findOneAndUpdate(
     { codigo: req.params.codigo },
@@ -198,11 +192,12 @@ app.patch('/mensagem/:codigo/abrir', async (req, res) => {
   res.json(msg);
 });
 
+// GET: status simples
 app.get('/status', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Webhook Twilio
+// WEBHOOK TWILIO
 app.post('/webhook/twilio', async (req, res) => {
   const msg = req.body.Body || '';
   const from = req.body.From || '';
@@ -227,17 +222,21 @@ app.post('/webhook/twilio', async (req, res) => {
   await novaMensagem.save();
 
   try {
-    await axios.post(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_SID}/Messages.json`, null, {
-      params: {
-        From: 'whatsapp:+14155238886',
-        To: `whatsapp:+${celularCliente}`,
-        Body: `Olá ${nomeCliente}, você recebeu uma mensagem segura do seu advogado via Genial Guard.\n\nCódigo de verificação: ${codigo}\n\nBaixe o app e digite o código para verificar a autenticidade.`
-      },
-      auth: {
-        username: process.env.TWILIO_SID,
-        password: process.env.TWILIO_TOKEN
+    await axios.post(
+      `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_SID}/Messages.json`,
+      null,
+      {
+        params: {
+          From: 'whatsapp:+14155238886',
+          To: `whatsapp:+${celularCliente}`,
+          Body: `Olá ${nomeCliente}, você recebeu uma mensagem segura do seu advogado via Genial Guard.\n\nCódigo de verificação: ${codigo}\n\nBaixe o app e digite o código para verificar a autenticidade.`
+        },
+        auth: {
+          username: process.env.TWILIO_SID,
+          password: process.env.TWILIO_TOKEN
+        }
       }
-    });
+    );
 
     console.log(`✅ Código enviado para ${celularCliente}`);
 
@@ -251,4 +250,4 @@ app.post('/webhook/twilio', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 API rodando na porta ${PORT}`));
